@@ -1,6 +1,6 @@
 [package]
 name = "bitclaw"
-version = "0.1.0"
+version = "0.2.0"
 description = "BitClaw - Desktop shell for PicoClaw"
 authors = ["sj"]
 edition = "2021"

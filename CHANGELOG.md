@@ -4,6 +4,21 @@ All notable changes to BitClaw will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-06-11
+
+### Added
+
+- Chat 功能：基于 Pico Protocol 的实时聊天
+  - 会话列表：侧边栏「最近」折叠区，显示历史会话
+  - 新建聊天：菜单项「新聊天」一键开始新对话
+  - 消息类型区分：用户消息、AI 回复、💭 思考过程、🔧 工具调用（展开显示函数名和参数）、⚙️ 工具结果
+  - 历史消息加载：解析 JSONL 中的 reasoning_content 和 tool_calls
+  - 会话管理：删除会话，当前会话高亮
+  - 用户消息右对齐 + 右侧头像（微信风格）
+- 后端新增：list_sessions、list_session_messages、delete_session 命令
+- WS 连接支持 session_id 参数
+- 全中文界面
+
 ## [0.1.0] - 2025-06-11
 
 ### Added
