@@ -4,6 +4,19 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
+/// Create a std::process::Command with console window hidden on Windows.
+fn silent_command(program: &str) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW = 0x08000000
+        cmd.creation_flags(0x08000000);
+    }
+    cmd
+}
+
 /// State for managing the picoclaw gateway child process.
 pub struct GatewayState {
     inner: Arc<Mutex<Option<GatewayProcess>>>,
@@ -158,7 +171,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
     #[cfg(unix)]
     {
         // Try fuser first (more widely available)
-        let fuser_output = std::process::Command::new("fuser")
+        let fuser_output = silent_command("fuser")
             .args([&format!("{}/tcp", port)])
             .output();
 
@@ -173,7 +186,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
                 // Verify it's actually picoclaw
                 if is_picoclaw_process(*pid) {
                     // SIGTERM first
-                    let _ = std::process::Command::new("kill")
+                    let _ = silent_command("kill")
                         .args([&pid.to_string()])
                         .output();
                 }
@@ -186,7 +199,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
                 // Check if any are still alive, SIGKILL if needed
                 for pid in &pids {
                     if is_picoclaw_process(*pid) {
-                        let _ = std::process::Command::new("kill")
+                        let _ = silent_command("kill")
                             .args(["-9", &pid.to_string()])
                             .output();
                     }
@@ -196,7 +209,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
         }
 
         // Fallback: use ss to find pids
-        let ss_output = std::process::Command::new("ss")
+        let ss_output = silent_command("ss")
             .args(["-tlnp", &format!("sport = :{}", port)])
             .output();
 
@@ -211,7 +224,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
 
             for pid in pids {
                 if is_picoclaw_process(pid) {
-                    let _ = std::process::Command::new("kill")
+                    let _ = silent_command("kill")
                         .args([&pid.to_string()])
                         .output();
                 }
@@ -225,7 +238,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
     {
         let _ = port; // suppress unused warning
         // On Windows, use netstat + taskkill
-        let output = std::process::Command::new("netstat")
+        let output = silent_command("netstat")
             .args(["-ano", "-p", "TCP"])
             .output()
             .map_err(|e| format!("netstat failed: {}", e))?;
@@ -235,7 +248,7 @@ async fn kill_picoclaw_on_port(port: u16) -> Result<(), String> {
             if line.contains(&format!(":{}", port)) && line.contains("LISTENING") {
                 if let Some(pid_str) = line.split_whitespace().last() {
                     if let Ok(pid) = pid_str.parse::<u32>() {
-                        let _ = std::process::Command::new("taskkill")
+                        let _ = silent_command("taskkill")
                             .args(["/F", "/PID", &pid.to_string()])
                             .output();
                     }
@@ -254,7 +267,7 @@ fn is_picoclaw_process(pid: u32) -> bool {
         return cmdline.contains("picoclaw");
     }
     // If we can't read /proc, try ps
-    let output = std::process::Command::new("ps")
+    let output = silent_command("ps")
         .args(["-p", &pid.to_string(), "-o", "comm="])
         .output();
     if let Ok(out) = output {

@@ -1,6 +1,18 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+/// Create a std::process::Command with console window hidden on Windows.
+fn silent_command(program: &str) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    cmd
+}
+
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
     #[error("IO error: {0}")]
@@ -177,7 +189,7 @@ pub async fn find_picoclaw(custom_path: Option<&str>) -> Result<Option<String>, 
 fn find_in_path() -> Option<String> {
     let cmd_name = if cfg!(windows) { "where" } else { "which" };
 
-    if let Ok(output) = std::process::Command::new(cmd_name)
+    if let Ok(output) = silent_command(cmd_name)
         .arg("picoclaw")
         .output()
     {
