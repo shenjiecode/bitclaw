@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+/* ============================================
+   BitClaw Design System — Warm Sage
+   Anchor: Editorial Minimal, warm paper palette
+   Like a well-designed book: warm paper, deep ink, sage green accent
+   ============================================ */
+
+@theme {
+  /* ---- Palette: warm paper ---- */
+  --color-ground: #f5f3ee;
+  --color-surface: #f0ede7;
+  --color-raised: #ebe7e0;
+  --color-overlay: #e4e0d8;
+
+  --color-ink: #2d2b28;
+  --color-ink-secondary: #787571;
+  --color-ink-tertiary: #a09c96;
+  --color-ink-disabled: #c4c0ba;
+
+  --color-hairline: #dbd6ce;
+  --color-hairline-subtle: #e5e1da;
+
+  /* Accent: sage green — the only color on the page */
+  --color-accent: #5b7844;
+  --color-accent-hover: #4a6336;
+  --color-accent-pressed: #3d522c;
+  --color-accent-subtle: rgba(91, 120, 68, 0.08);
+  --color-accent-soft: rgba(91, 120, 68, 0.14);
+
+  /* Semantic */
+  --color-success: #4a8c3f;
+  --color-warning: #c2832a;
+  --color-destructive: #c44a3e;
+
+  /* ---- Radius: sharp-warm (4–6px) ---- */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* ---- Font sizes ---- */
+  --text-caption2: 11px;
+  --text-caption2--line-height: 1.35;
+  --text-caption: 13px;
+  --text-caption--line-height: 1.4;
+  --text-body: 15px;
+  --text-body--line-height: 1.65;
+  --text-title: 18px;
+  --text-title--line-height: 1.3;
+  --text-title--letter-spacing: -0.018em;
+  --text-heading: 22px;
+  --text-heading--line-height: 1.25;
+  --text-heading--letter-spacing: -0.02em;
+
+  /* ---- Font weights ---- */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+}
+
+/* ---- Base ---- */
+* {
+  border-color: var(--color-hairline);
+}
+
+body {
+  background-color: var(--color-ground);
+  color: var(--color-ink);
+  font-family:
+    "Inter Tight",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Scrollbar (quiet, warm) ---- */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-tertiary);
+}
+
+/* ---- Selection ---- */
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+
+/* ---- Focus ring ---- */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* ---- Page entry animation ---- */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Pulse animation for connecting state ---- */
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.15; }
+}
+
+/* ---- Monospace utility ---- */
+.font-mono {
+  font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+}

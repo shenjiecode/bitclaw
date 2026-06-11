@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build per platform ──────────────────────────────────────
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            args: ''
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # ── Linux system deps ────────────────────────────────
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      # ── Build ────────────────────────────────────────────
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'BitClaw ${{ github.ref_name }}'
+          releaseBody: 'See [CHANGELOG.md](./CHANGELOG.md) for details.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # ── Changelog ───────────────────────────────────────────────
+  changelog:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREVIOUS=$(git tag --sort=-version:refname | head -2 | tail -1)
+
+          echo "## What's Changed" > /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+
+          if [ "$PREVIOUS" = "$TAG" ]; then
+            # First release — list all commits
+            echo "Initial release." >> /tmp/release-body.md
+            echo "" >> /tmp/release-body.md
+            git log --pretty=format:"- %s (%h)" >> /tmp/release-body.md
+          else
+            git log --pretty=format:"- %s (%h)" "${PREVIOUS}..${TAG}" >> /tmp/release-body.md
+          fi
+
+          echo "" >> /tmp/release-body.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS}...${TAG}" >> /tmp/release-body.md
+
+          echo "body_file=/tmp/release-body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # Find the draft release for this tag
+          RELEASE_ID=$(gh release list --draft --json tagName,id -q ".[] | select(.tagName==\"${TAG}\") | .id")
+          if [ -n "$RELEASE_ID" ]; then
+            gh api \
+              --method PATCH \
+              repos/${{ github.repository }}/releases/$RELEASE_ID \
+              -f body="$(cat /tmp/release-body.md)"
+          fi

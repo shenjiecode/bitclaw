@@ -1,0 +1,41 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+Thumbs.db
+
+# Screenshots / design assets
+*.png
+!src-tauri/icons/*.png
+
+# Claude / AI
+.ouroboros/
+.playwright-mcp/
+CLAUDE.md
