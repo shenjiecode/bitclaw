@@ -39,6 +39,7 @@ impl ConnectionState {
         app: AppHandle,
         url: &str,
         token: Option<&str>,
+        session_id: Option<&str>,
     ) -> Result<(), ConnectionError> {
         {
             let guard = self.inner.lock().await;
@@ -47,7 +48,16 @@ impl ConnectionState {
             }
         }
 
-        let mut request = url.into_client_request()?;
+        // Build URL with session_id
+        let final_url = match session_id {
+            Some(sid) if !sid.is_empty() => {
+                let separator = if url.contains('?') { '&' } else { '?' };
+                format!("{}{}session_id={}", url, separator, sid)
+            }
+            _ => url.to_string(),
+        };
+
+        let mut request = final_url.into_client_request()?;
 
         if let Some(tok) = token {
             if !tok.is_empty() {

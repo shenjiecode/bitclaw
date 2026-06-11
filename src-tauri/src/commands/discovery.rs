@@ -134,9 +134,10 @@ pub async fn connect_picoclaw(
     connection_state: State<'_, Arc<ConnectionState>>,
     url: String,
     token: Option<String>,
+    session_id: Option<String>,
 ) -> Result<(), String> {
     connection_state
-        .connect(app, &url, token.as_deref())
+        .connect(app, &url, token.as_deref(), session_id.as_deref())
         .await
         .map_err(|e| e.to_string())
 }

@@ -1,4 +1,4 @@
-use commands::{artifacts, config, discovery, files};
+use commands::{artifacts, config, discovery, files, sessions};
 use services::connection::ConnectionState;
 use services::gateway::GatewayState;
 use std::sync::Arc;
@@ -50,6 +50,9 @@ pub fn run() {
             files::create_directory,
             files::delete_workspace_item,
             files::rename_workspace_item,
+            sessions::list_sessions,
+            sessions::list_session_messages,
+            sessions::delete_session,
             artifacts::list_artifacts,
             artifacts::create_artifact,
             artifacts::delete_artifact,
