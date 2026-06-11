@@ -9,6 +9,9 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Build per platform ──────────────────────────────────────
   build:
@@ -47,16 +50,14 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Install frontend dependencies
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
 
       # ── Linux system deps ────────────────────────────────
       - name: Install Linux dependencies
@@ -111,8 +112,6 @@ jobs:
 
           echo "" >> /tmp/release-body.md
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS}...${TAG}" >> /tmp/release-body.md
-
-          echo "body_file=/tmp/release-body.md" >> "$GITHUB_OUTPUT"
 
       - name: Update release notes
         env:
