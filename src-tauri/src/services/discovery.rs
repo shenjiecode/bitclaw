@@ -256,7 +256,7 @@ fn get_search_paths() -> Vec<PathBuf> {
             paths.push(PathBuf::from(app_data).join("picoclaw"));
         }
         if let Some(local_app_data) = std::env::var("LOCALAPPDATA").ok() {
-            paths.push(PathBuf::from(local_app_data).join("picoclaw"));
+            paths.push(PathBuf::from(&local_app_data).join("picoclaw"));
             paths.push(PathBuf::from(local_app_data).join("Programs").join("picoclaw"));
         }
     }
