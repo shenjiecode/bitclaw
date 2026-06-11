@@ -119,10 +119,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           # Find the draft release for this tag
-          RELEASE_ID=$(gh release list --draft --json tagName,id -q ".[] | select(.tagName==\"${TAG}\") | .id")
+          RELEASE_ID=$(gh release list --json tagName,id -q ".[] | select(.tagName==\"${TAG}\") | .id")
           if [ -n "$RELEASE_ID" ]; then
-            gh api \
-              --method PATCH \
-              repos/${{ github.repository }}/releases/$RELEASE_ID \
-              -f body="$(cat /tmp/release-body.md)"
+            gh release edit "${TAG}" --notes-file /tmp/release-body.md
           fi
