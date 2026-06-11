@@ -7,6 +7,21 @@ pub enum DiscoveryError {
     Io(#[from] std::io::Error),
 }
 
+/// Result of a filesystem scan for picoclaw candidates.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ScanResult {
+    /// All candidate paths that were checked.
+    pub candidates: Vec<CandidatePath>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CandidatePath {
+    pub path: String,
+    pub exists: bool,
+    pub is_executable: bool,
+    pub source: String,
+}
+
 /// Resolve picoclaw home directory, respecting PICOCLAW_HOME env var.
 fn picoclaw_home() -> Option<PathBuf> {
     if let Ok(custom) = std::env::var("PICOCLAW_HOME") {
@@ -36,8 +51,78 @@ pub fn get_picoclaw_config_path() -> Option<String> {
     picoclaw_config_path().map(|p| p.to_string_lossy().to_string())
 }
 
-/// Search for picoclaw binary with optional custom path.
-/// Priority: custom_path > PATH/which > preset directories
+/// Scan the filesystem for picoclaw binary candidates.
+/// Returns all checked paths with their status — the frontend can display this.
+/// Deduplicates by canonical path so the same file isn't shown twice.
+pub fn scan_for_picoclaw() -> ScanResult {
+    let mut candidates = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    // 1. PATH via which/where
+    if let Some(path) = find_in_path() {
+        let canonical = canonical_key(&PathBuf::from(&path));
+        if seen.insert(canonical) {
+            candidates.push(CandidatePath {
+                path: path.clone(),
+                exists: true,
+                is_executable: true,
+                source: "PATH".to_string(),
+            });
+        }
+    }
+
+    // 2. Well-known directories
+    let search_dirs = get_search_paths();
+    for dir in &search_dirs {
+        let binary_path = dir.join("picoclaw");
+        let exists = binary_path.exists();
+        let is_executable = exists && is_executable(&binary_path);
+        let canonical = canonical_key(&binary_path);
+        if seen.insert(canonical) {
+            candidates.push(CandidatePath {
+                path: binary_path.to_string_lossy().to_string(),
+                exists,
+                is_executable,
+                source: format!("{}", dir.to_string_lossy()),
+            });
+        }
+    }
+
+    // 3. PICOCLAW_HOME / ~/.picoclaw
+    if let Some(home) = picoclaw_home() {
+        for sub in &["", "bin"] {
+            let dir = if sub.is_empty() {
+                home.clone()
+            } else {
+                home.join(sub)
+            };
+            let binary_path = dir.join("picoclaw");
+            let exists = binary_path.exists();
+            let is_executable = exists && is_executable(&binary_path);
+            let canonical = canonical_key(&binary_path);
+            if seen.insert(canonical) {
+                candidates.push(CandidatePath {
+                    path: binary_path.to_string_lossy().to_string(),
+                    exists,
+                    is_executable,
+                    source: format!("PICOCLAW_HOME ({})", dir.to_string_lossy()),
+                });
+            }
+        }
+    }
+
+    ScanResult { candidates }
+}
+
+/// Canonicalize a path for dedup. Falls back to the string representation.
+fn canonical_key(path: &PathBuf) -> String {
+    path.canonicalize()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| path.to_string_lossy().to_string())
+}
+
+/// Find picoclaw binary with optional custom path.
+/// Priority: custom_path > PATH/which > preset directories > PICOCLAW_HOME
 pub async fn find_picoclaw(custom_path: Option<&str>) -> Result<Option<String>, DiscoveryError> {
     // 1. User-specified path takes highest priority
     if let Some(path) = custom_path {
@@ -49,7 +134,7 @@ pub async fn find_picoclaw(custom_path: Option<&str>) -> Result<Option<String>, 
         // If it's a directory, look for picoclaw inside
         if p.is_dir() {
             let binary = p.join("picoclaw");
-            if binary.is_file() || binary.with_extension("exe").is_file() {
+            if binary.is_file() {
                 return Ok(Some(binary.to_string_lossy().to_string()));
             }
         }
@@ -62,9 +147,16 @@ pub async fn find_picoclaw(custom_path: Option<&str>) -> Result<Option<String>, 
         return Ok(Some(path));
     }
 
-    // 3. Check PICOCLAW_HOME directory
+    // 3. Check common install locations
+    for dir in get_search_paths() {
+        let path = dir.join("picoclaw");
+        if path.is_file() {
+            return Ok(Some(path.to_string_lossy().to_string()));
+        }
+    }
+
+    // 4. Check PICOCLAW_HOME directory
     if let Some(home) = picoclaw_home() {
-        // Could be in $PICOCLAW_HOME itself or a bin subdirectory
         for sub in &["", "bin"] {
             let dir = if sub.is_empty() {
                 home.clone()
@@ -72,17 +164,9 @@ pub async fn find_picoclaw(custom_path: Option<&str>) -> Result<Option<String>, 
                 home.join(sub)
             };
             let binary = dir.join("picoclaw");
-            if binary.exists() {
+            if binary.is_file() {
                 return Ok(Some(binary.to_string_lossy().to_string()));
             }
-        }
-    }
-
-    // 4. Check common install locations
-    for dir in get_search_paths() {
-        let path = dir.join("picoclaw");
-        if path.exists() {
-            return Ok(Some(path.to_string_lossy().to_string()));
         }
     }
 
@@ -126,12 +210,31 @@ fn shellexpand_path(path: &str) -> String {
     path
 }
 
+/// Check if a path is executable (simple heuristic).
+fn is_executable(path: &PathBuf) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        path.metadata()
+            .map(|m| m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+    #[cfg(windows)]
+    {
+        path.extension()
+            .map(|ext| ext == "exe")
+            .unwrap_or(true) // no extension could still be executable on Windows via PATHEXT
+    }
+}
+
 fn get_search_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
     if let Some(home) = dirs::home_dir() {
         paths.push(home.join(".local/bin"));
         paths.push(home.join("bin"));
+        paths.push(home.join(".picoclaw"));
+        paths.push(home.join(".picoclaw/bin"));
     }
 
     #[cfg(target_os = "macos")]
@@ -144,6 +247,7 @@ fn get_search_paths() -> Vec<PathBuf> {
     {
         paths.push(PathBuf::from("/usr/local/bin"));
         paths.push(PathBuf::from("/usr/bin"));
+        paths.push(PathBuf::from("/snap/bin"));
     }
 
     #[cfg(target_os = "windows")]
@@ -153,6 +257,7 @@ fn get_search_paths() -> Vec<PathBuf> {
         }
         if let Some(local_app_data) = std::env::var("LOCALAPPDATA").ok() {
             paths.push(PathBuf::from(local_app_data).join("picoclaw"));
+            paths.push(PathBuf::from(local_app_data).join("Programs").join("picoclaw"));
         }
     }
 

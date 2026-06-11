@@ -16,25 +16,34 @@ pub fn init_db(app_data_dir: &std::path::Path) -> Result<DbState, Box<dyn std::e
 fn run_migrations(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_version (
-            version INTEGER PRIMARY KEY
-        );
-        INSERT OR IGNORE INTO schema_version (version, rowid) VALUES (0, 1);"
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            version INTEGER NOT NULL
+        );"
     )?;
 
-    let version: i32 = conn.query_row(
-        "SELECT version FROM schema_version WHERE rowid = 1",
-        [],
-        |row| row.get(0),
-    )?;
+    // Get current version — default 0 if no row yet
+    let version: i32 = conn
+        .query_row(
+            "SELECT version FROM schema_version WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
 
     if version < 1 {
         conn.execute_batch(include_str!("migrations/001_init.sql"))?;
-        conn.execute("UPDATE schema_version SET version = 1 WHERE rowid = 1", [])?;
+        conn.execute(
+            "INSERT OR REPLACE INTO schema_version (id, version) VALUES (1, 1)",
+            [],
+        )?;
     }
 
     if version < 2 {
         conn.execute_batch(include_str!("migrations/002_settings.sql"))?;
-        conn.execute("UPDATE schema_version SET version = 2 WHERE rowid = 1", [])?;
+        conn.execute(
+            "UPDATE schema_version SET version = 2 WHERE id = 1",
+            [],
+        )?;
     }
 
     Ok(())

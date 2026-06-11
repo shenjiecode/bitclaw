@@ -150,9 +150,8 @@ fn parse_config_and_build_status(
         .unwrap_or(false);
 
     // Token may be in settings.token or directly in the channel config
-    let has_token = pico_channel
+    let has_token_in_config = pico_channel
         .and_then(|pc| {
-            // Check settings.token first
             pc.get("settings")
                 .and_then(|s| s.get("token"))
                 .and_then(|t| t.as_str())
@@ -160,9 +159,28 @@ fn parse_config_and_build_status(
         })
         .unwrap_or(false);
 
+    // Also check .security.yml for token
+    let has_token_in_yml = config_path_str.as_ref().and_then(|cp| {
+        let config_dir = std::path::Path::new(cp).parent()?;
+        let yml_path = config_dir.join(".security.yml");
+        if !yml_path.exists() { return None; }
+        let content = std::fs::read_to_string(&yml_path).ok()?;
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&content).ok()?;
+        let token = yaml
+            .get("channel_list")
+            .or_else(|| yaml.get("channels"))
+            .and_then(|cl| cl.get("pico"))
+            .and_then(|p| p.get("settings"))
+            .and_then(|s| s.get("token"))
+            .and_then(|t| t.as_str())?;
+        Some(!token.is_empty())
+    }).unwrap_or(false);
+
+    let has_token = has_token_in_config || has_token_in_yml;
+
     // Build WS URL if ready
     let ws_url = if pico_enabled {
-        Some(format!("ws://{}:{}/pico", gateway_host, gateway_port))
+        Some(format!("ws://{}:{}/pico/ws", gateway_host, gateway_port))
     } else {
         None
     };

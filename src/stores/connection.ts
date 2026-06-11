@@ -11,6 +11,12 @@ export type PicoStatusSummary =
   | "ready_to_connect"
   | { config_error: string };
 
+// Mirrors the Rust GatewayDetection enum
+export type GatewayDetection =
+  | "not_running"
+  | "running_managed"
+  | "running_external";
+
 export interface PicoClawStatus {
   binary_path: string | null;
   config_path: string | null;
@@ -23,12 +29,29 @@ export interface PicoClawStatus {
   status_summary: PicoStatusSummary;
 }
 
+export interface CandidatePath {
+  path: string;
+  exists: boolean;
+  is_executable: boolean;
+  source: string;
+}
+
+export interface ScanResult {
+  candidates: CandidatePath[];
+}
+
 interface ConnectionState {
   status: "disconnected" | "connecting" | "connected";
+  gatewayRunning: boolean;
+  gatewayDetection: GatewayDetection | null;
   picoStatus: PicoClawStatus | null;
+  scanResult: ScanResult | null;
   error: string | null;
 
   discover: () => Promise<void>;
+  scan: () => Promise<void>;
+  startGateway: () => Promise<void>;
+  stopGateway: () => Promise<void>;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   send: (content: string) => Promise<void>;
@@ -37,11 +60,15 @@ interface ConnectionState {
   // Internal
   _unlistenWs?: UnlistenFn;
   _unlistenStatus?: UnlistenFn;
+  _unlistenGateway?: UnlistenFn;
 }
 
 export const useConnectionStore = create<ConnectionState>((set, get) => ({
   status: "disconnected",
+  gatewayRunning: false,
+  gatewayDetection: null,
   picoStatus: null,
+  scanResult: null,
   error: null,
 
   discover: async () => {
@@ -50,6 +77,22 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
       const status = await invoke<PicoClawStatus>("discover_picoclaw");
       set({ picoStatus: status });
 
+      // Auto-detect gateway port status
+      if (status.gateway_host && status.gateway_port) {
+        try {
+          const detection = await invoke<GatewayDetection>("detect_gateway", {
+            host: status.gateway_host,
+            port: status.gateway_port,
+          });
+          set({
+            gatewayDetection: detection,
+            gatewayRunning: detection !== "not_running",
+          });
+        } catch {
+          // ignore
+        }
+      }
+
       // Auto-connect if ready
       if (
         typeof status.status_summary === "string" &&
@@ -57,6 +100,62 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
       ) {
         get().connect();
       }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  scan: async () => {
+    try {
+      const result = await invoke<ScanResult>("scan_picoclaw_paths");
+      set({ scanResult: result });
+    } catch {
+      // ignore
+    }
+  },
+
+  startGateway: async () => {
+    set({ error: null });
+    try {
+      // Listen for gateway events first
+      if (!get()._unlistenGateway) {
+        const unlisten = await listen<string>("gateway:status", (event) => {
+          set({ gatewayRunning: event.payload === "running" });
+        });
+        set({ _unlistenGateway: unlisten });
+      }
+      // Listen for gateway errors
+      const unlistenErr = await listen<string>("gateway:error", (event) => {
+        const msg = event.payload;
+        set({
+          error: msg.replace(/^.*ERR\s*/, "").trim() || msg,
+          gatewayRunning: false,
+        });
+      });
+
+      await invoke("start_gateway");
+      set({ gatewayRunning: true });
+
+      // After 2s, verify the process is still alive
+      setTimeout(async () => {
+        unlistenErr();
+        try {
+          const running = await invoke<boolean>("is_gateway_running");
+          if (!running) {
+            set({ gatewayRunning: false });
+            // Error should have come via gateway:error event already
+          }
+        } catch { /* ignore */ }
+      }, 2000);
+    } catch (e) {
+      set({ error: String(e), gatewayRunning: false });
+    }
+  },
+
+  stopGateway: async () => {
+    try {
+      await invoke("stop_gateway");
+      set({ gatewayRunning: false });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -129,10 +228,12 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     }
     get()._unlistenWs?.();
     get()._unlistenStatus?.();
+    get()._unlistenGateway?.();
     set({
       status: "disconnected",
       _unlistenWs: undefined,
       _unlistenStatus: undefined,
+      _unlistenGateway: undefined,
     });
   },
 

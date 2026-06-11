@@ -26,6 +26,31 @@ pub async fn write_picoclaw_config(
         .map_err(|e| format!("Failed to write config: {}", e))
 }
 
+/// Read picoclaw .security.yml as raw text.
+#[tauri::command]
+pub async fn read_security_yml(home_dir: Option<String>) -> Result<Option<String>, String> {
+    let config_path = resolve_config_path(home_dir)?;
+    let security_path = config_path.parent().unwrap_or(std::path::Path::new(".")).join(".security.yml");
+    if !security_path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(&security_path)
+        .map(Some)
+        .map_err(|e| format!("Failed to read .security.yml: {}", e))
+}
+
+/// Write picoclaw .security.yml from raw text.
+#[tauri::command]
+pub async fn write_security_yml(
+    home_dir: Option<String>,
+    content: String,
+) -> Result<(), String> {
+    let config_path = resolve_config_path(home_dir)?;
+    let security_path = config_path.parent().unwrap_or(std::path::Path::new(".")).join(".security.yml");
+    std::fs::write(&security_path, content)
+        .map_err(|e| format!("Failed to write .security.yml: {}", e))
+}
+
 /// Get the pico channel token from picoclaw config.
 /// First checks config.json, then tries .security.yml.
 #[tauri::command]
@@ -62,9 +87,11 @@ pub async fn get_pico_token(home_dir: Option<String>) -> Result<Option<String>, 
         let yaml_value: serde_yaml::Value =
             serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse .security.yml: {}", e))?;
         let yml_token = yaml_value
-            .get("channels")
-            .and_then(|c| c.get("pico"))
-            .and_then(|p| p.get("token"))
+            .get("channel_list")
+            .or_else(|| yaml_value.get("channels"))
+            .and_then(|cl| cl.get("pico"))
+            .and_then(|p| p.get("settings"))
+            .and_then(|s| s.get("token"))
             .and_then(|t| t.as_str())
             .map(|t| t.to_string());
         return Ok(yml_token);

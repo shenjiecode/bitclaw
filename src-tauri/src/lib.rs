@@ -1,5 +1,6 @@
 use commands::{artifacts, config, discovery, files};
 use services::connection::ConnectionState;
+use services::gateway::GatewayState;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -13,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -22,10 +24,16 @@ pub fn run() {
                 .expect("Failed to initialize database");
             app.manage(db_state);
             app.manage(Arc::new(ConnectionState::new()));
+            app.manage(Arc::new(GatewayState::new()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             discovery::discover_picoclaw,
+            discovery::scan_picoclaw_paths,
+            discovery::detect_gateway,
+            discovery::start_gateway,
+            discovery::stop_gateway,
+            discovery::is_gateway_running,
             discovery::set_picoclaw_binary_path,
             discovery::get_picoclaw_binary_path,
             discovery::connect_picoclaw,
@@ -33,9 +41,15 @@ pub fn run() {
             discovery::send_picoclaw_message,
             config::read_picoclaw_config,
             config::write_picoclaw_config,
+            config::read_security_yml,
+            config::write_security_yml,
             config::get_pico_token,
             files::list_workspace_files,
             files::read_workspace_file,
+            files::write_workspace_file,
+            files::create_directory,
+            files::delete_workspace_item,
+            files::rename_workspace_item,
             artifacts::list_artifacts,
             artifacts::create_artifact,
             artifacts::delete_artifact,
