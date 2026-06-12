@@ -14,10 +14,12 @@ function App() {
   const { status, picoStatus, gatewayRunning, gatewayDetection, discover, startGateway, stopGateway } = useConnectionStore();
   const isConnected = status === "connected";
 
-  // Auto-discover on first mount if not yet discovered
-  if (!picoStatus && status === "disconnected") {
-    discover();
-  }
+  // Auto-discover on first mount
+  useEffect(() => {
+    if (!picoStatus && status === "disconnected") {
+      discover();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Init chat listener + load sessions when connected
   const { sessions, currentSessionKey, loadSessions, selectSession, deleteSession, newChat } = useChatStore();
