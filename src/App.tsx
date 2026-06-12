@@ -15,11 +15,7 @@ function App() {
   const isConnected = status === "connected";
 
   // Auto-discover on first mount
-  useEffect(() => {
-    if (!picoStatus && status === "disconnected") {
-      discover();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { discover(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Init chat listener + load sessions when connected
   const { sessions, currentSessionKey, loadSessions, selectSession, deleteSession, newChat } = useChatStore();
@@ -39,6 +35,12 @@ function App() {
     selectSession(key, uuid);
     setPage("chat");
   }
+
+  // picoclaw 状态判断
+  const hasBinary = !!picoStatus?.binary_path;
+  const statusSummary = typeof picoStatus?.status_summary === "string"
+    ? picoStatus.status_summary
+    : null;
 
   return (
     <div className="flex h-screen bg-surface text-ink overflow-hidden">
@@ -88,55 +90,90 @@ function App() {
         </nav>
 
         {/* Recent sessions */}
-        <RecentSessions
-          sessions={sessions}
-          currentKey={currentSessionKey}
-          onSelect={handleSelectSession}
-          onDelete={deleteSession}
-        />
+        {hasBinary && (
+          <RecentSessions
+            sessions={sessions}
+            currentKey={currentSessionKey}
+            onSelect={handleSelectSession}
+            onDelete={deleteSession}
+          />
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Gateway & Connection status */}
+        {/* Status area */}
         <div className="mx-2.5 mb-3 space-y-1">
+
+          {/* 未找到 PicoClaw 提示 */}
+          {!hasBinary && picoStatus && (
+            <button
+              onClick={() => setPage("config")}
+              className="flex items-center gap-2 w-full px-2.5 py-2 rounded-sm text-[11px] leading-snug transition-colors duration-150 cursor-pointer border-0 bg-transparent text-left"
+              style={{ color: "var(--color-warning)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(0,0,0,0.03)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "var(--color-warning)" }} />
+              <span className="flex-1">未检测到 PicoClaw，点击设置路径</span>
+            </button>
+          )}
+
+          {/* 配置有问题的提示 */}
+          {hasBinary && statusSummary && statusSummary !== "ready_to_connect" && statusSummary !== "binary_not_found" && !isConnected && (
+            <button
+              onClick={() => setPage("config")}
+              className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-sm text-[11px] leading-none transition-colors duration-150 cursor-pointer border-0 bg-transparent text-left"
+              style={{ color: "var(--color-ink-tertiary)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(0,0,0,0.03)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "var(--color-warning)" }} />
+              <span className="flex-1 truncate">{statusSummaryLabel(statusSummary)}</span>
+            </button>
+          )}
+
           {/* Gateway */}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-sm text-[11px] leading-none"
-            style={{ color: picoStatus ? "var(--color-ink-secondary)" : "var(--color-ink-tertiary)" }}>
-            <span className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ backgroundColor: gatewayRunning ? "var(--color-accent)" : "var(--color-ink-tertiary)" }} />
-            <span className="flex-1 truncate">
-              {gatewayRunning
-                ? gatewayDetection === "running_external" ? "网关（外部）" : "网关"
-                : "网关"}
-            </span>
-            {picoStatus?.binary_path && (
-              gatewayRunning
-                ? gatewayDetection === "running_managed"
-                  ? <button onClick={(e) => { e.stopPropagation(); stopGateway(); }} className="opacity-60 hover:opacity-100 transition-opacity" style={{ color: "var(--color-destructive)" }}>停止</button>
-                  : null
-                : <button onClick={(e) => { e.stopPropagation(); startGateway(); }} className="opacity-60 hover:opacity-100 transition-opacity" style={{ color: "var(--color-accent)" }}>启动</button>
-            )}
-          </div>
+          {hasBinary && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-sm text-[11px] leading-none"
+              style={{ color: "var(--color-ink-secondary)" }}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: gatewayRunning ? "var(--color-accent)" : "var(--color-ink-tertiary)" }} />
+              <span className="flex-1 truncate">
+                {gatewayRunning
+                  ? gatewayDetection === "running_external" ? "网关（外部）" : "网关"
+                  : "网关"}
+              </span>
+              {picoStatus?.binary_path && (
+                gatewayRunning
+                  ? gatewayDetection === "running_managed"
+                    ? <button onClick={(e) => { e.stopPropagation(); stopGateway(); }} className="opacity-60 hover:opacity-100 transition-opacity" style={{ color: "var(--color-destructive)" }}>停止</button>
+                    : null
+                  : <button onClick={(e) => { e.stopPropagation(); startGateway(); }} className="opacity-60 hover:opacity-100 transition-opacity" style={{ color: "var(--color-accent)" }}>启动</button>
+              )}
+            </div>
+          )}
 
           {/* Connection */}
-          <button
-            onClick={() => setPage("config")}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-sm text-[11px] leading-none transition-colors duration-150 cursor-pointer border-0 bg-transparent text-left"
-            style={{ color: isConnected ? "var(--color-accent)" : "var(--color-ink-tertiary)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(0,0,0,0.03)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{
-                backgroundColor: isConnected ? "var(--color-accent)" : "var(--color-ink-tertiary)",
-                opacity: status === "connecting" ? 0.45 : 1,
-                animation: status === "connecting" ? "pulse-opacity 1.2s ease-in-out infinite" : "none",
-              }} />
-            <span className="truncate">
-              {isConnected ? "已连接" : status === "connecting" ? "连接中…" : "未连接"}
-            </span>
-          </button>
+          {hasBinary && (
+            <button
+              onClick={() => setPage("config")}
+              className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-sm text-[11px] leading-none transition-colors duration-150 cursor-pointer border-0 bg-transparent text-left"
+              style={{ color: isConnected ? "var(--color-accent)" : "var(--color-ink-tertiary)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(0,0,0,0.03)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: isConnected ? "var(--color-accent)" : "var(--color-ink-tertiary)",
+                  opacity: status === "connecting" ? 0.45 : 1,
+                  animation: status === "connecting" ? "pulse-opacity 1.2s ease-in-out infinite" : "none",
+                }} />
+              <span className="truncate">
+                {isConnected ? "已连接" : status === "connecting" ? "连接中…" : "未连接"}
+              </span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -151,6 +188,17 @@ function App() {
       </main>
     </div>
   );
+}
+
+/* ─── Helpers ────────────────────────────────────────────── */
+
+function statusSummaryLabel(s: string): string {
+  const map: Record<string, string> = {
+    config_not_found: "配置文件未找到",
+    pico_not_enabled: "Pico 通道未启用",
+    pico_enabled_no_token: "缺少 Token",
+  };
+  return map[s] ?? s;
 }
 
 /* ─── Nav Item ───────────────────────────────────────────── */

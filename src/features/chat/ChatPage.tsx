@@ -22,9 +22,13 @@ export function ChatPage() {
       <div className="flex flex-col h-full">
         <Header />
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[14px]" style={{ color: "var(--color-ink-tertiary)" }}>
-            请先连接 PicoClaw
-          </p>
+          <div className="text-center">
+            <p className="text-[14px]" style={{ color: "var(--color-ink-tertiary)" }}>
+              {useConnectionStore.getState().picoStatus?.binary_path
+                ? "请先连接 PicoClaw"
+                : "请先在设置中配置 PicoClaw 路径"}
+            </p>
+          </div>
         </div>
       </div>
     );
