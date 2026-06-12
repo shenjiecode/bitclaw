@@ -27,16 +27,20 @@ interface ChatState {
   sessions: SessionMeta[];
   currentSessionKey: string | null;
   currentSessionUuid: string | null;
+  currentSessionUpdatedAt: string | null;
   messages: ChatMessage[];
   loading: boolean;
   sending: boolean;
   error: string | null;
+  _pollTimer: ReturnType<typeof setInterval> | null;
 
   loadSessions: () => Promise<void>;
-  selectSession: (key: string, uuid: string) => Promise<void>;
+  selectSession: (key: string, uuid: string, updatedAt?: string) => Promise<void>;
   deleteSession: (key: string) => Promise<void>;
   newChat: () => void;
   sendMessage: (content: string) => Promise<void>;
+  startPolling: (intervalMs?: number) => void;
+  stopPolling: () => void;
   _unlisten?: UnlistenFn;
 }
 
@@ -46,10 +50,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   currentSessionKey: null,
   currentSessionUuid: null,
+  currentSessionUpdatedAt: null,
   messages: [],
   loading: false,
   sending: false,
   error: null,
+  _pollTimer: null,
 
   loadSessions: async () => {
     try {
@@ -60,8 +66,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  selectSession: async (key: string, uuid: string) => {
-    set({ loading: true, error: null, currentSessionKey: key, currentSessionUuid: uuid, messages: [] });
+  selectSession: async (key: string, uuid: string, updatedAt?: string) => {
+    set({ loading: true, error: null, currentSessionKey: key, currentSessionUuid: uuid, currentSessionUpdatedAt: updatedAt || null, messages: [] });
     try {
       const raw = await invoke<{ role: string; content: string; reasoning?: string; tool_calls?: any }[]>("list_session_messages", { sessionKey: key });
       const messages: ChatMessage[] = [];
@@ -119,6 +125,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       currentSessionKey: null,
       currentSessionUuid: null,
+      currentSessionUpdatedAt: null,
       messages: [],
       error: null,
     });
@@ -146,6 +153,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await invoke("send_picoclaw_message", { message: JSON.stringify(msg) });
     } catch (e) {
       set({ sending: false, error: String(e) });
+    }
+  },
+
+  startPolling: (intervalMs = 3000) => {
+    const state = get();
+    if (state._pollTimer) return;
+
+    const timer = setInterval(async () => {
+      const s = get();
+      if (s.sending) return;
+
+      try {
+        const sessions = await invoke<SessionMeta[]>("list_sessions");
+        const currentKey = get().currentSessionKey;
+        const prevUpdatedAt = get().currentSessionUpdatedAt;
+
+        set({ sessions });
+
+        if (currentKey && prevUpdatedAt) {
+          const current = sessions.find((s) => s.key === currentKey);
+          if (current && current.updated_at > prevUpdatedAt) {
+            const raw = await invoke<
+              { role: string; content: string; reasoning?: string; tool_calls?: any }[]
+            >("list_session_messages", { sessionKey: currentKey });
+
+            const messages: ChatMessage[] = [];
+            raw.forEach((m, i) => {
+              if (m.reasoning) {
+                messages.push({
+                  id: `hist-thought-${i}`,
+                  role: "thought",
+                  content: m.reasoning,
+                  timestamp: 0,
+                });
+              }
+              if (m.tool_calls) {
+                const calls = Array.isArray(m.tool_calls) ? m.tool_calls : [];
+                messages.push({
+                  id: `hist-toolcalls-${i}`,
+                  role: "tool_calls",
+                  content: "",
+                  timestamp: 0,
+                  toolCallsData: calls,
+                });
+              }
+              if (m.content || !m.tool_calls) {
+                messages.push({
+                  id: `hist-${i}`,
+                  role: normalizeRole(m.role),
+                  content: m.content,
+                  timestamp: 0,
+                });
+              }
+            });
+
+            set({
+              messages,
+              currentSessionUpdatedAt: current.updated_at,
+            });
+          }
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, intervalMs);
+
+    set({ _pollTimer: timer });
+  },
+
+  stopPolling: () => {
+    const timer = get()._pollTimer;
+    if (timer) {
+      clearInterval(timer);
+      set({ _pollTimer: null });
     }
   },
 }));
@@ -195,13 +276,25 @@ export async function initChatListener() {
         return { messages: [...s.messages, msg], sending: false };
       });
 
-      // Update session list after first response in new chat
+      // Keep session metadata in sync so polling doesn't double-load
       if (!store.getState().currentSessionKey) {
+        // New chat: set session UUID and refresh session list
         const sessionId = parsed.session_id;
         if (sessionId) {
           store.setState({ currentSessionUuid: sessionId });
         }
         store.getState().loadSessions();
+      } else {
+        // Existing session: refresh metadata to update currentSessionUpdatedAt
+        store.getState().loadSessions().then(() => {
+          const sessions = store.getState().sessions;
+          const cur = sessions.find(
+            (s) => s.key === store.getState().currentSessionKey
+          );
+          if (cur) {
+            store.setState({ currentSessionUpdatedAt: cur.updated_at });
+          }
+        });
       }
     } else if (type === "message.update") {
       const messageId = payload.message_id;
