@@ -18,12 +18,18 @@ function App() {
   useEffect(() => { discover(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Init chat listener + load sessions when connected
-  const { sessions, currentSessionKey, loadSessions, selectSession, deleteSession, newChat } = useChatStore();
+  const { sessions, currentSessionKey, loadSessions, selectSession, deleteSession, newChat, startPolling, stopPolling } = useChatStore();
 
   useEffect(() => { initChatListener(); }, []);
 
   useEffect(() => {
-    if (isConnected) loadSessions();
+    if (isConnected) {
+      loadSessions();
+      startPolling();
+    } else {
+      stopPolling();
+    }
+    return () => { stopPolling(); };
   }, [isConnected]);
 
   function handleNewChat() {
@@ -32,7 +38,8 @@ function App() {
   }
 
   function handleSelectSession(key: string, uuid: string) {
-    selectSession(key, uuid);
+    const meta = sessions.find((s) => s.key === key);
+    selectSession(key, uuid, meta?.updated_at);
     setPage("chat");
   }
 
@@ -53,7 +60,8 @@ function App() {
         }}
       >
         {/* App title */}
-        <div className="h-14 flex items-center px-4">
+        <div className="h-14 flex items-center gap-2 px-4">
+          <img src="/logo.png" alt="BitClaw" className="w-6 h-6 rounded-sm shrink-0" />
           <span className="text-title font-medium tracking-[-0.018em]" style={{ color: "var(--color-ink)" }}>
             BitClaw
           </span>

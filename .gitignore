@@ -34,6 +34,7 @@ Thumbs.db
 # Screenshots / design assets
 *.png
 !src-tauri/icons/*.png
+!public/*.png
 
 # Claude / AI
 .ouroboros/
