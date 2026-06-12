@@ -7,6 +7,7 @@ BitClaw 是 [PicoClaw](https://github.com/sipeed/picoclaw) 的桌面外壳应用
 ## 功能
 
 - 🔍 **自动发现** — 检测本机安装的 PicoClaw
+- 🚀 **Gateway 管理** — 启动/停止 PicoClaw Gateway 子进程
 - 💬 **对话** — 通过 Pico Channel WebSocket 与 PicoClaw 交互
 - 📁 **文件浏览** — 浏览 PicoClaw workspace 中的文件
 - ⚙️ **配置管理** — 读写 PicoClaw 配置
@@ -18,9 +19,9 @@ BitClaw 是 [PicoClaw](https://github.com/sipeed/picoclaw) 的桌面外壳应用
 |---|---|
 | 桌面壳 | Tauri 2 |
 | 前端 | React 19 + TypeScript |
-| 构建 | Vite + Tailwind CSS v4 |
-| 状态管理 | Zustand |
-| UI 组件 | shadcn/ui |
+| 构建 | Vite 7 + Tailwind CSS v4 |
+| 状态管理 | Zustand 5 |
+| UI 组件 | 手工组件 + Tailwind（shadcn/ui 待引入） |
 | 后端 | Rust |
 | 本地存储 | SQLite (rusqlite) |
 
@@ -52,9 +53,9 @@ npm run tauri build
 
 ```
 src/              # React 前端
-  features/       # 功能模块 (chat, artifacts, config, files)
+  features/       # 功能模块 (chat, artifacts, workspace, config)
   stores/         # Zustand 状态管理
-  components/ui/  # shadcn/ui 组件
+  components/ui/  # shadcn/ui 组件目录（暂未初始化）
 src-tauri/        # Rust 后端
   src/commands/   # Tauri IPC 命令
   src/services/   # 业务逻辑

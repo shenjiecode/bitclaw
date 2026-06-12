@@ -2,12 +2,12 @@
 
 ## 项目概述
 BitClaw 是 PicoClaw 的桌面外壳应用。前端 React + TypeScript，后端 Rust（Tauri 2）。
-通过 Pico Channel WebSocket（ws://host:18790/pico）与 PicoClaw 通信。
+通过 Pico Channel WebSocket（ws://host:18790/pico/ws）与 PicoClaw 通信。
 
 ## 目录结构
 - `src/` — React 前端代码
-  - `components/ui/` — shadcn/ui 组件，仅通过 `npx shadcn@latest add` 管理
-  - `features/` — 按功能模块组织页面级组件，每个模块一个文件夹
+  - `components/ui/` — shadcn/ui 组件目录（暂未初始化，当前所有 UI 为手工组件）
+  - `features/` — 按功能模块组织页面级组件，每个模块一个文件夹（chat / artifacts / workspace / config）
   - `hooks/` — 跨模块复用的 React hooks
   - `stores/` — Zustand store，按领域拆分
   - `lib/` — 纯工具函数
@@ -38,7 +38,7 @@ BitClaw 是 PicoClaw 的桌面外壳应用。前端 React + TypeScript，后端 
 
 ## WebSocket 通信
 - 前端不直接连 PicoClaw WebSocket
-- Rust 侧做 WebSocket 中转：连接 picoclaw gateway 的 /pico 端点
+- Rust 侧做 WebSocket 中转：连接 picoclaw gateway 的 /pico/ws 端点
 - 前端通过 Tauri Event 收发消息
 - 连接状态由 Zustand store 管理
 

@@ -4,6 +4,14 @@ All notable changes to BitClaw will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-06-12
+
+### Fixed
+
+- 修复 PicoClaw 未安装时无限重渲染导致白屏的问题（`discover()` 从 render 移至 `useEffect`）
+- 无 PicoClaw 时显示中文引导提示，隐藏 Gateway/连接控件，保持所有页面可操作
+- Windows 平台隐藏所有子进程控制台窗口
+
 ## [0.2.0] - 2026-06-11
 
 ### Added
@@ -43,4 +51,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Zustand store for connection state management
 - Settings persistence via `bitclaw_settings` SQLite table
 
+[0.2.3]: https://github.com/shenjiecode/bitclaw/releases/tag/v0.2.3
 [0.1.0]: https://github.com/shenjiecode/bitclaw/releases/tag/v0.1.0
